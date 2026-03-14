@@ -515,8 +515,7 @@
   const CAT_COLORS = ['#D8A99A', '#A9B8B4', '#D0906E', '#c2cfcc', '#e8c4b8'];
 
   // Your published Google Sheet CSV
-  const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRjFfpK2Jq71pD7PKik0WTx7NKSA6W2persrdL6Dwm79xhuQNglThlj9K8hz9h1-nEqpt5-NmYxR68S/pub?gid=0&single=true&output=csv';
-  const PROXY_URL = SHEET_CSV;
+  const SHEET_CSV = "https://docs.google.com/spreadsheets/d/1en2v24ABEa15BXql5Hg3zL85s1bc4F5XRRQ-PqU-Yn8/gviz/tq?tqx=out:csv";
 
   // Static fallback — shown if all fetches fail
   const FALLBACK = [
@@ -572,17 +571,12 @@
   // Falls back to static data if unreachable.
   // ═══════════════════════════════════════════
   async function fetchMenu() {
-    try {
-      const res = await fetch(`${PROXY_URL}&t=${Date.now()}`);
-      const csv = await res.text();
-      const data = parseCSV(csv);
+    const res = await fetch(`${SHEET_CSV}&t=${Date.now()}`, {
+      cache: "no-store"
+    });
   
-      if (data) return data;
-    } catch (e) {
-      console.warn("Live fetch failed:", e);
-    }
-  
-    return FALLBACK;
+    const csv = await res.text();
+    return parseCSV(csv);
   }
 
   // ═════════════════════════════════════════════
