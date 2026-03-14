@@ -573,7 +573,7 @@
   // ═══════════════════════════════════════════
   async function fetchMenu() {
     try {
-      const res = await fetch(PROXY_URL);
+      const res = await fetch(`${PROXY_URL}&t=${Date.now()}`);
       const csv = await res.text();
       const data = parseCSV(csv);
   
