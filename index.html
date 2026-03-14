@@ -516,8 +516,7 @@
 
   // Your published Google Sheet CSV
   const SHEET_CSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRjFfpK2Jq71pD7PKik0WTx7NKSA6W2persrdL6Dwm79xhuQNglThlj9K8hz9h1-nEqpt5-NmYxR68S/pub?gid=0&single=true&output=csv';
-  // Routed through allorigins to bypass Google's CORS redirect
-  const PROXY_URL = 'https://api.allorigins.win/get?url=' + encodeURIComponent(SHEET_CSV);
+  const PROXY_URL = SHEET_CSV;
 
   // Static fallback — shown if all fetches fail
   const FALLBACK = [
@@ -574,16 +573,16 @@
   // ═══════════════════════════════════════════
   async function fetchMenu() {
     try {
-      const res  = await fetch(PROXY_URL);
-      if (!res.ok) throw new Error('proxy HTTP ' + res.status);
-      const json = await res.json();          // allorigins wraps CSV in { contents: "..." }
-      const data = parseCSV(json.contents);
+      const res = await fetch(PROXY_URL);
+      const csv = await res.text();
+      const data = parseCSV(csv);
+  
       if (data) return data;
-      throw new Error('empty parse');
-    } catch(e) {
-      console.warn('Live fetch failed, using fallback:', e.message);
-      return FALLBACK;
+    } catch (e) {
+      console.warn("Live fetch failed:", e);
     }
+  
+    return FALLBACK;
   }
 
   // ═════════════════════════════════════════════
