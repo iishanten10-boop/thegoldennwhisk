@@ -397,7 +397,9 @@
 // CONFIG
 // ══════════════════════════════════════════
 const CAT_COLORS = ['#D8A99A','#A9B8B4','#D0906E','#c2cfcc','#e8c4b8'];
-const SHEET_CSV  = 'https://docs.google.com/spreadsheets/d/1en2v24ABEa15BXql5Hg3zL85s1bc4F5XRRQ-PqU-Yn8/gviz/tq?tqx=out:csv';
+const SHEET_CSV   = 'https://docs.google.com/spreadsheets/d/1en2v24ABEa15BXql5Hg3zL85s1bc4F5XRRQ-PqU-Yn8/gviz/tq?tqx=out:csv';
+// Banner sheet — separate, fetched once on load, no polling
+const BANNER_CSV  = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRu9YVkBCUSG5j51lTYwJdpIQZyfZSc6fKUIIIoIPaJjrsrpDYTgqzSIKwrfDT3PMhFeJI9aBGEEERe/pub?gid=0&single=true&output=csv';
 
 const FALLBACK = [
   { category:'Brownies', items:[
@@ -440,48 +442,63 @@ function parseCSV(text) {
     const available = (rawAvail === 'no' || rawAvail === 'n' || rawAvail === 'false' || rawAvail === '0') ? 'no' : 'yes';
     if (!name || name.toLowerCase() === 'item') continue;
     if (!seen.has(cat)) { seen.set(cat, []); groups.push({ category:cat, items:seen.get(cat) }); }
-    // Banner column (col 4) — only collected from rows where category is empty or "Banner"
-    const banner = (cols[4] || '').replace(/^"|"$/g,'').trim();
-    seen.get(cat).push({ name, price, available, banner });
+    seen.get(cat).push({ name, price, available });
   }
   return groups.length ? groups : null;
 }
 
 // Extract banner slides — any non-empty value in col 4 across all rows
-function extractBanners(text) {
-  const lines = text.trim().split('\n').slice(1);
-  const slides = [];
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    const cols = []; let cur = '', inQ = false;
-    for (const ch of line) {
-      if (ch === '"') { inQ = !inQ; }
-      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
-      else { cur += ch; }
-    }
-    cols.push(cur.trim());
-    const banner = (cols[4] || '').replace(/^"|"$/g,'').trim();
-    if (banner) slides.push(banner);
-  }
-  // deduplicate while preserving order
-  return [...new Map(slides.map(s=>[s,s])).values()];
-}
-
 // ══════════════════════════════════════════
-// FETCH — direct gviz CSV, no proxy needed
+// FETCH MENU — direct gviz CSV, no proxy
 // ══════════════════════════════════════════
 async function fetchMenu() {
   try {
     const res = await fetch(`${SHEET_CSV}&t=${Date.now()}`, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const csv     = await res.text();
-    const data    = parseCSV(csv);
-    const banners = extractBanners(csv);
-    if (data) return { data, banners, fromFallback: false };
+    const csv  = await res.text();
+    const data = parseCSV(csv);
+    if (data) return { data, fromFallback: false };
     throw new Error('empty parse');
   } catch(e) {
-    console.warn('Live fetch failed, using fallback:', e.message);
-    return { data: FALLBACK, banners: [], fromFallback: true };
+    console.warn('Menu fetch failed, using fallback:', e.message);
+    return { data: FALLBACK, fromFallback: true };
+  }
+}
+
+// ══════════════════════════════════════════
+// FETCH BANNERS — separate sheet, once on load
+// Each row: col A = slide HTML content
+// ══════════════════════════════════════════
+async function fetchBanners() {
+  try {
+    const res = await fetch(BANNER_CSV, { cache: 'no-store' });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const text   = await res.text();
+    const lines  = text.trim().split('\n').slice(1); // skip header row
+    const slides = [];
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      // Each row: first column is the HTML content for one slide
+      // Google Sheets wraps cells with commas/quotes — extract col A
+      let content = '';
+      if (line.startsWith('"')) {
+        // quoted field — find closing quote accounting for escaped quotes
+        let i = 1, out = '';
+        while (i < line.length) {
+          if (line[i] === '"' && line[i+1] === '"') { out += '"'; i += 2; }
+          else if (line[i] === '"') { break; }
+          else { out += line[i]; i++; }
+        }
+        content = out.trim();
+      } else {
+        content = line.split(',')[0].trim();
+      }
+      if (content) slides.push(content);
+    }
+    return slides;
+  } catch(e) {
+    console.warn('Banner fetch failed:', e.message);
+    return [];
   }
 }
 
@@ -674,12 +691,11 @@ document.getElementById('banner-close').addEventListener('click', () => {
 });
 
 async function loadAndRender(isPolling = false) {
-  const { data, banners, fromFallback } = await fetchMenu();
+  const { data, fromFallback } = await fetchMenu();
   const hash = hashGroups(data);
   if (hash === lastDataHash) return; // nothing changed
   lastDataHash = hash;
   renderMenu(data);
-  renderBanner(banners);
   setTimestamp(fromFallback);
 }
 
@@ -785,6 +801,8 @@ function runSplash() {
 window.addEventListener('load', () => {
   loadAndRender();
   startPolling();
+  // Banners fetched once — no polling needed
+  fetchBanners().then(renderBanner);
   runSplash();
 });
 </script>
