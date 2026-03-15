@@ -379,7 +379,7 @@
 
   <footer class="footer">
     <span class="foot-logo">The Goldenn Whisk</span>
-    <p class="foot-sub">Bengaluru &nbsp;·&nbsp; Handbaked with love ♡</p>
+    <p class="foot-sub">Amruthahalli, Bengaluru &nbsp;·&nbsp; Handbaked with love ♡</p>
   </footer>
 </div>
 
@@ -471,30 +471,47 @@ async function fetchMenu() {
 // ══════════════════════════════════════════
 async function fetchBanners() {
   try {
-    const res = await fetch(BANNER_CSV, { cache: 'no-store' });
+    const res  = await fetch(BANNER_CSV, { cache: 'no-store' });
     if (!res.ok) throw new Error('HTTP ' + res.status);
-    const text   = await res.text();
-    const lines  = text.trim().split('\n').slice(1); // skip header row
+    const text = await res.text();
+
+    // Proper RFC-4180 CSV parser — handles multi-line cells (newlines inside quotes)
+    // Google Sheets wraps any cell containing commas/newlines/quotes in double-quotes,
+    // and escapes internal quotes as "". We walk char-by-char to extract col A per row.
     const slides = [];
-    for (const line of lines) {
-      if (!line.trim()) continue;
-      // Each row: first column is the HTML content for one slide
-      // Google Sheets wraps cells with commas/quotes — extract col A
-      let content = '';
-      if (line.startsWith('"')) {
-        // quoted field — find closing quote accounting for escaped quotes
-        let i = 1, out = '';
-        while (i < line.length) {
-          if (line[i] === '"' && line[i+1] === '"') { out += '"'; i += 2; }
-          else if (line[i] === '"') { break; }
-          else { out += line[i]; i++; }
+    let i = 0, rowCount = 0;
+
+    function readCell() {
+      let val = '';
+      if (text[i] === '"') {
+        i++; // skip opening quote
+        while (i < text.length) {
+          if (text[i] === '"' && text[i+1] === '"') { val += '"'; i += 2; }  // escaped quote
+          else if (text[i] === '"') { i++; break; }                           // closing quote
+          else { val += text[i++]; }
         }
-        content = out.trim();
       } else {
-        content = line.split(',')[0].trim();
+        while (i < text.length && text[i] !== ',' && text[i] !== '\n' && text[i] !== '\r') {
+          val += text[i++];
+        }
       }
-      if (content) slides.push(content);
+      return val.trim();
     }
+
+    function skipToNextRow() {
+      // skip remaining columns on this row
+      while (i < text.length && text[i] !== '\n' && text[i] !== '\r') i++;
+      while (i < text.length && (text[i] === '\n' || text[i] === '\r')) i++;
+    }
+
+    while (i < text.length) {
+      const colA = readCell();
+      skipToNextRow();
+      rowCount++;
+      if (rowCount === 1) continue; // skip header
+      if (colA) slides.push(colA);
+    }
+
     return slides;
   } catch(e) {
     console.warn('Banner fetch failed:', e.message);
