@@ -87,8 +87,8 @@
     @keyframes logoRise{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
 
     /* ── MAIN ── */
-    #main{opacity:0;transform:translateY(12px);transition:opacity 0.5s ease,transform 0.5s ease;}
-    #main.visible{opacity:1;transform:translateY(0);}
+    #main{opacity:0;transition:opacity 0.6s ease;}
+    #main.visible{opacity:1;}
 
     /* ── BRAND PILL ── */
     .brand-pill {
@@ -101,7 +101,7 @@
 
     /* ── CATEGORY JUMP PILLS ── */
     .jump-bar {
-      position:sticky; top:44px; z-index:99;
+      position:sticky; top:43px; z-index:99;
       background:rgba(253,248,243,0.95); backdrop-filter:blur(10px); -webkit-backdrop-filter:blur(10px);
       border-bottom:1px solid rgba(216,169,154,0.2);
       padding:0.55rem 1rem; overflow-x:auto; white-space:nowrap;
@@ -674,6 +674,10 @@ function renderBanner(slides) {
     : '';
 
   wrap.classList.remove('hidden');
+  // Scroll to top so banner is visible — it renders above the brand pill
+  if (document.body.classList.contains('ready')) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
 
   if (slides.length <= 1) return;
 
@@ -798,6 +802,7 @@ function runSplash() {
     setTimeout(() => {
       document.getElementById('splash').style.display = 'none';
       document.body.classList.add('ready');
+      window.scrollTo(0, 0); // ensure banner is visible from the very top
       document.getElementById('main').classList.add('visible');
       startObserver();
     }, DUR + 130);
